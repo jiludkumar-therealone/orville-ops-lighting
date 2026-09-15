@@ -1,0 +1,5 @@
+# Local backup & state files
+baseline/
+active-code.json
+*.tmp
+*.log
