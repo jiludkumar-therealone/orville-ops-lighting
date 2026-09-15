@@ -1,4 +1,4 @@
-# Set-OpsCode.ps1 — Orville-style ship lighting for Day to Day fleet ops (Outpost28)
+﻿# Set-OpsCode.ps1 — Orville-style ship lighting for Day to Day fleet ops (Outpost28)
 # Usage: Set-OpsCode.ps1 -Code Blue | Watchstander | GoLive | Pink | Green | Yellow | Tactical | Red | Restore
 # Code Blue (Win11 #0078D4) = Watchstander — field ops, outposts, diagnostics, monitoring
 # Code Blue GoLive (-Code GoLive) = authorized production deploy (wrangler deploy, merge main)
@@ -6,14 +6,31 @@
 # Ignore legacy FORGE_UPLINK/Gemini "CODE BLUE" — ops lighting is defined here only
 
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false, Position = 0)]
     [ValidateSet('Yellow', 'Tactical', 'Pink', 'Blue', 'Watchstander', 'GoLive', 'Red', 'Green', 'Restore', 'DeepBlue', 'StandDown', 'BattleStation', 'Amber', 'Orange', 'Maintenance')]
-    [string]$Code
+    [string]$Code,
+
+    [Parameter(Mandatory = $false)]
+    [string]$LedPort,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Audio,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Status,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$List
 )
 
 $ErrorActionPreference = 'Stop'
 
-$OpsRoot = Join-Path $env:USERPROFILE '.grok\ops'
+# Portable state & baseline root: use .grok\ops if present, otherwise dedicated ~/.ops-lighting
+$OpsRoot = if (Test-Path (Join-Path $env:USERPROFILE '.grok\ops')) { 
+    Join-Path $env:USERPROFILE '.grok\ops' 
+} else { 
+    Join-Path $env:USERPROFILE '.ops-lighting' 
+}
 $BaselineDir = Join-Path $OpsRoot 'baseline'
 $StateFile = Join-Path $OpsRoot 'active-code.json'
 
@@ -21,7 +38,10 @@ $WtPath = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb
 $IdePaths = @(
     (Join-Path $env:APPDATA 'Antigravity IDE\User\settings.json'),
     (Join-Path $env:APPDATA 'Cursor\User\settings.json'),
-    (Join-Path $env:APPDATA 'Code\User\settings.json')
+    (Join-Path $env:APPDATA 'Code\User\settings.json'),
+    (Join-Path $env:APPDATA 'Code - Insiders\User\settings.json'),
+    (Join-Path $env:APPDATA 'VSCodium\User\settings.json'),
+    (Join-Path $env:APPDATA 'Windsurf\User\settings.json')
 )
 
 function Ensure-Dir([string]$Path) {
@@ -547,6 +567,211 @@ function Restore-Baseline {
     if (Test-Path $StateFile) { Remove-Item $StateFile -Force }
 }
 
+function Show-OpsList {
+    Write-Host ""
+    Write-Host "===============================================================" -ForegroundColor Cyan
+    Write-Host " [*] ORVILLE OPS LIGHTING -- FLEET CODES CATALOG" -ForegroundColor White
+    Write-Host "===============================================================" -ForegroundColor Cyan
+    Write-Host " [Green]        Active engineering & code synthesis (#059669)" -ForegroundColor Green
+    Write-Host " [Pink]         Planning, analysis, captain authorization (#DB2777)" -ForegroundColor Magenta
+    Write-Host " [Red]          Critical anomaly, alert, battle station (#DC2626)" -ForegroundColor Red
+    Write-Host " [Blue]         Watchstander, monitoring, fleet telemetry (#0078D4)" -ForegroundColor Blue
+    Write-Host " [Yellow]       Tactical posture, caution, staging (#D97706)" -ForegroundColor Yellow
+    Write-Host " [Amber]        Hardware maintenance & repairs (#D97706)" -ForegroundColor DarkYellow
+    Write-Host " [GoLive]       Authorized production deployment (#2563EB)" -ForegroundColor Cyan
+    Write-Host " [Restore]      Stand down, restore original baseline (#Default)" -ForegroundColor Gray
+    Write-Host "===============================================================" -ForegroundColor Cyan
+    Write-Host " Usage: .\Set-OpsCode.ps1 -Code <Name> [-LedPort COMx] [-Audio]"
+    Write-Host ""
+}
+
+function Show-OpsStatus {
+    Write-Host ""
+    Write-Host "===============================================================" -ForegroundColor Cyan
+    Write-Host " [*] ORVILLE OPS LIGHTING -- CURRENT TELEMETRY STATUS" -ForegroundColor White
+    Write-Host "===============================================================" -ForegroundColor Cyan
+    if (Test-Path $StateFile) {
+        try {
+            $state = Get-Content $StateFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            Write-Host (" Current Status:   {0}" -f $state.label) -ForegroundColor Green
+            Write-Host (" Operational Code: {0}" -f $state.code) -ForegroundColor White
+            Write-Host (" Engaged At:       {0}" -f $state.at) -ForegroundColor Gray
+            if ($env:OPS_LED_PORT) {
+                Write-Host (" LED Controller:   {0}" -f $env:OPS_LED_PORT) -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host " Status: Active, but state telemetry could not be read." -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host " Current Status:   STAND DOWN / BASELINE (Cold-standby)" -ForegroundColor Gray
+        Write-Host " Operational Code: Restore / None" -ForegroundColor DarkGray
+    }
+    Write-Host "===============================================================" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+function Play-OpsAudio([string]$OpsCode) {
+    try {
+        switch -Regex ($OpsCode) {
+            'Red|BattleStation' {
+                [Console]::Beep(880, 140); Start-Sleep -Milliseconds 60
+                [Console]::Beep(880, 140); Start-Sleep -Milliseconds 60
+                [Console]::Beep(880, 260)
+            }
+            'Green' {
+                [Console]::Beep(523, 90)
+                [Console]::Beep(659, 90)
+                [Console]::Beep(784, 140)
+            }
+            'Pink' {
+                [Console]::Beep(659, 110)
+                [Console]::Beep(880, 130)
+            }
+            'Blue|Watchstander|GoLive' {
+                [Console]::Beep(1046, 180)
+            }
+            'Yellow|Amber|Tactical|Maintenance' {
+                [Console]::Beep(740, 120); Start-Sleep -Milliseconds 70
+                [Console]::Beep(740, 120)
+            }
+            'Restore|StandDown|DeepBlue' {
+                [Console]::Beep(784, 120)
+                [Console]::Beep(523, 200)
+            }
+            default {
+                [Console]::Beep(600, 100)
+            }
+        }
+    } catch {}
+}
+
+function Send-OpsLedColor([string]$Port, [string]$Hex, [string]$CodeName) {
+    $targetPort = if ($Port) { $Port } elseif ($env:OPS_LED_PORT) { $env:OPS_LED_PORT } else { $null }
+    if (-not $targetPort) { return }
+
+    try {
+        $rgb = if ($CodeName -eq 'Restore') {
+            @{ R = 0; G = 0; B = 0 }
+        } else {
+            Parse-HexRgb $Hex
+        }
+
+        # Protocol format: SET_RGB:<R>,<G>,<B>\n
+        $payload = "SET_RGB:{0},{1},{2}`n" -f $rgb.R, $rgb.G, $rgb.B
+
+        $sp = New-Object System.IO.Ports.SerialPort $targetPort, 115200, None, 8, One
+        $sp.ReadTimeout = 500
+        $sp.WriteTimeout = 500
+        $sp.DtrEnable = $true
+        $sp.RtsEnable = $true
+        $sp.Open()
+        $sp.Write($payload)
+        Start-Sleep -Milliseconds 50
+        $sp.Close()
+        $sp.Dispose()
+        Write-Host ("    LED Strip: Sent RGB ({0},{1},{2}) via {3}" -f $rgb.R, $rgb.G, $rgb.B, $targetPort) -ForegroundColor DarkCyan
+    } catch {
+        Write-Warning ("Could not transmit to LED Controller on {0}: {1}" -f $targetPort, $_.Exception.Message)
+    }
+}
+
+function Set-LocalTerminalDefaults([hashtable]$Palette, [string]$WtSettingsPath, [string]$OpsRootPath) {
+    if (-not (Test-Path $WtSettingsPath)) { return }
+    
+    $FleetProfiles = @('Orion', 'Apollo', 'Argus')
+    try {
+        $json = Get-Content $WtSettingsPath -Raw -Encoding UTF8
+        $settings = $json | ConvertFrom-Json
+
+        if (-not $settings.profiles.defaults) {
+            $settings.profiles | Add-Member -NotePropertyName defaults -NotePropertyValue ([pscustomobject]@{})
+        }
+
+        $settings.profiles.defaults | Add-Member -NotePropertyName colorScheme -NotePropertyValue $Palette.terminalScheme -Force
+        $settings.profiles.defaults | Add-Member -NotePropertyName background -NotePropertyValue $Palette.terminalBg -Force
+        $settings.profiles.defaults | Add-Member -NotePropertyName useAcrylic -NotePropertyValue $false -Force
+
+        if ($settings.profiles.list) {
+            foreach ($profile in $settings.profiles.list) {
+                if ($FleetProfiles -contains $profile.name) {
+                    @('colorScheme', 'background') | ForEach-Object {
+                        if ($profile.PSObject.Properties.Name -contains $_) {
+                            $profile.PSObject.Properties.Remove($_) | Out-Null
+                        }
+                    }
+                    $profile | Add-Member -NotePropertyName useAcrylic -NotePropertyValue $false -Force
+                }
+            }
+        }
+
+        for ($retry = 0; $retry -lt 5; $retry++) {
+            try {
+                ($settings | ConvertTo-Json -Depth 32) | Set-Content $WtSettingsPath -Encoding UTF8
+                break
+            } catch {
+                Start-Sleep -Milliseconds 200
+            }
+        }
+    } catch {}
+
+    $themeManifest = Join-Path $OpsRootPath 'terminal-theme.json'
+    @{
+        label = $Palette.label
+        scheme = $Palette.terminalScheme
+        background = $Palette.terminalBg
+        foreground = $Palette.terminalFg
+        cursor = $Palette.terminalCursor
+        ansi = $Palette.terminalAnsi
+        at = (Get-Date).ToString('o')
+    } | ConvertTo-Json -Depth 6 | Set-Content $themeManifest -Encoding UTF8
+}
+
+function Send-TerminalOscTheme([hashtable]$Palette) {
+    function Send-Osc([string]$Sequence) {
+        $esc = [char]27
+        [Console]::Write("$esc]$Sequence$esc\")
+    }
+
+    function Normalize-Hex([string]$Hex) {
+        if ($Hex.StartsWith('#')) { return $Hex }
+        return "#$Hex"
+    }
+
+    $ansi = $Palette.terminalAnsi
+    if (-not $ansi) { return }
+
+    $bg = Normalize-Hex $Palette.terminalBg
+    $fg = Normalize-Hex $Palette.terminalFg
+    $cursor = Normalize-Hex $Palette.terminalCursor
+
+    Send-Osc "11;$bg"
+    Send-Osc "10;$fg"
+    Send-Osc "12;$cursor"
+
+    $slots = @(
+        $ansi.black, $ansi.red, $ansi.green, $ansi.yellow,
+        $ansi.blue, $ansi.purple, $ansi.cyan, $ansi.white,
+        $ansi.brightBlack, $ansi.brightRed, $ansi.brightGreen, $ansi.brightYellow,
+        $ansi.brightBlue, $ansi.brightPurple, $ansi.brightCyan, $ansi.brightWhite
+    )
+
+    for ($i = 0; $i -lt $slots.Count; $i++) {
+        if ($slots[$i]) {
+            Send-Osc ("4;{0};{1}" -f $i, (Normalize-Hex $slots[$i]))
+        }
+    }
+}
+
+if ($List) {
+    Show-OpsList
+    exit 0
+}
+
+if ($Status -or [string]::IsNullOrWhiteSpace($Code)) {
+    Show-OpsStatus
+    exit 0
+}
+
 # Normalize aliases
 $normalized = switch ($Code) {
     'Tactical' { 'Yellow' }
@@ -564,6 +789,8 @@ Ensure-Dir $BaselineDir
 
 if ($normalized -eq 'Restore') {
     Restore-Baseline
+    Send-OpsLedColor -Port $LedPort -Hex '#000000' -CodeName 'Restore'
+    if ($Audio) { Play-OpsAudio 'Restore' }
     Write-Host '>>> STAND DOWN - normal lighting restored.'
     exit 0
 }
@@ -579,11 +806,13 @@ $palette = Get-Palette $normalized
 Prepare-OpsShell
 Set-WindowsAccent $palette.accent
 Set-TerminalTheme $palette
-& (Join-Path $env:USERPROFILE '.grok\scripts\Set-LocalTerminalFromOps.ps1') -Palette $palette
-& (Join-Path $env:USERPROFILE '.grok\scripts\Invoke-TerminalOscTheme.ps1') -Palette $palette
+Set-LocalTerminalDefaults -Palette $palette -WtSettingsPath $WtPath -OpsRootPath $OpsRoot
+Send-TerminalOscTheme -Palette $palette
 Set-IdeTheme $palette
+Send-OpsLedColor -Port $LedPort -Hex $palette.accent -CodeName $normalized
+if ($Audio) { Play-OpsAudio $normalized }
 
-@{ code = $normalized; label = $palette.label; at = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content $StateFile -Encoding UTF8
+@{ code = $normalized; label = $palette.label; accent = $palette.accent; at = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content $StateFile -Encoding UTF8
 
 # Sync active state to Outpost32 WebUI Console
 try {

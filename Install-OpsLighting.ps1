@@ -35,8 +35,7 @@ if ($profileContent -notmatch [regex]::Escape($marker)) {
 
 $marker
 function ops {
-    param([Parameter(Mandatory=`$false)][string]`$Code = 'Blue')
-    `& '$TargetScript' -Code `$Code
+    & '$TargetScript' @args
 }
 # <<< Orville Ship Lighting Helper
 "@
