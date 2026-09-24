@@ -1,4 +1,4 @@
-﻿# Set-OpsCode.ps1 — Orville-style ship lighting for Day to Day fleet ops (Outpost28)
+# Set-OpsCode.ps1 — Orville-style ship lighting for Day to Day fleet ops (Outpost28)
 # Usage: Set-OpsCode.ps1 -Code Blue | Watchstander | GoLive | Pink | Green | Yellow | Tactical | Red | Restore
 # Code Blue (Win11 #0078D4) = Watchstander — field ops, outposts, diagnostics, monitoring
 # Code Blue GoLive (-Code GoLive) = authorized production deploy (wrangler deploy, merge main)
@@ -7,7 +7,7 @@
 
 param(
     [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet('Yellow', 'Tactical', 'Pink', 'Blue', 'Watchstander', 'GoLive', 'Red', 'Green', 'Restore', 'DeepBlue', 'StandDown', 'BattleStation', 'Amber', 'Orange', 'Maintenance')]
+    [ValidateSet('Yellow', 'Tactical', 'Pink', 'Blue', 'Watchstander', 'GoLive', 'Red', 'Green', 'Purple', 'Handover', 'Restore', 'DeepBlue', 'StandDown', 'BattleStation', 'Amber', 'Orange', 'Maintenance')]
     [string]$Code,
 
     [Parameter(Mandatory = $false)]
@@ -448,6 +448,38 @@ function Get-Palette([string]$Name) {
                 }
             }
         }
+        'Purple' {
+            return @{
+                label = 'CODE PURPLE — INTER-AGENT HANDOVER'
+                accent = '#9333EA'
+                terminalBg = '#190A28'
+                terminalFg = '#F3E8FF'
+                terminalCursor = '#C084FC'
+                terminalScheme = 'Ops Code Purple Handover'
+                terminalAnsi = @{
+                    black = '#190A28'; red = '#F87171'; green = '#4ADE80'; yellow = '#FACC15'
+                    blue = '#818CF8'; purple = '#A855F7'; cyan = '#38BDF8'; white = '#F3E8FF'
+                    brightBlack = '#3B185F'; brightRed = '#FCA5A5'; brightGreen = '#86EFAC'; brightYellow = '#FDE68A'
+                    brightBlue = '#A5B4FC'; brightPurple = '#C084FC'; brightCyan = '#7DD3FC'; brightWhite = '#FAF5FF'
+                    selectionBackground = '#6B21A8'
+                }
+                ide = @{
+                    'titleBar.activeBackground' = '#581C87'
+                    'titleBar.activeForeground' = '#F3E8FF'
+                    'activityBar.background' = '#190A28'
+                    'activityBar.foreground' = '#C084FC'
+                    'statusBar.background' = '#6B21A8'
+                    'statusBar.foreground' = '#F3E8FF'
+                    'sideBar.background' = '#230E38'
+                    'editor.background' = '#140720'
+                    'terminal.background' = '#190A28'
+                    'terminal.foreground' = '#F3E8FF'
+                    'panel.background' = '#190A28'
+                    'tab.activeBackground' = '#6B21A8'
+                    'tab.inactiveBackground' = '#190A28'
+                }
+            }
+        }
     }
 }
 
@@ -579,6 +611,7 @@ function Show-OpsList {
     Write-Host " [Yellow]       Tactical posture, caution, staging (#D97706)" -ForegroundColor Yellow
     Write-Host " [Amber]        Hardware maintenance & repairs (#D97706)" -ForegroundColor DarkYellow
     Write-Host " [GoLive]       Authorized production deployment (#2563EB)" -ForegroundColor Cyan
+    Write-Host " [Purple]       Inter-agent handover / baton pass (#9333EA)" -ForegroundColor Magenta
     Write-Host " [Restore]      Stand down, restore original baseline (#Default)" -ForegroundColor Gray
     Write-Host "===============================================================" -ForegroundColor Cyan
     Write-Host " Usage: .\Set-OpsCode.ps1 -Code <Name> [-LedPort COMx] [-Audio]"
@@ -626,6 +659,11 @@ function Play-OpsAudio([string]$OpsCode) {
             'Pink' {
                 [Console]::Beep(659, 110)
                 [Console]::Beep(880, 130)
+            }
+            'Purple|Handover' {
+                [Console]::Beep(659, 100); Start-Sleep -Milliseconds 40
+                [Console]::Beep(830, 100); Start-Sleep -Milliseconds 40
+                [Console]::Beep(1046, 160)
             }
             'Blue|Watchstander|GoLive' {
                 [Console]::Beep(1046, 180)
@@ -781,6 +819,7 @@ $normalized = switch ($Code) {
     'Maintenance' { 'Amber' }
     'DeepBlue' { 'Restore' }
     'StandDown' { 'Restore' }
+    'Handover' { 'Purple' }
     default { $Code }
 }
 

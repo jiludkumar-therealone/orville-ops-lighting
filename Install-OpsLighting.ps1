@@ -48,6 +48,7 @@ function ops {
 Write-Host "`nInstallation Complete! Usage:" -ForegroundColor Cyan
 Write-Host "  ops green       -> Active Engineering Mode" -ForegroundColor Green
 Write-Host "  ops pink        -> Standby / Architecture / Planning Mode" -ForegroundColor Magenta
+Write-Host "  ops purple      -> Inter-Agent Handover / Baton Pass Mode" -ForegroundColor Magenta
 Write-Host "  ops blue        -> Watchstander / Diagnostics Mode" -ForegroundColor Blue
 Write-Host "  ops red         -> Tactical Alert / Anomaly Mode" -ForegroundColor Red
 Write-Host "  ops restore     -> Restore Normal Windows Baseline Lighting" -ForegroundColor Yellow

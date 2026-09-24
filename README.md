@@ -18,6 +18,7 @@ Transform any personal Windows workstation into an immersive starship bridge tha
 | :--- | :--- | :--- | :--- |
 | 🟢 **`Green`** | `#059669` | `#071A13` | **Active Engineering**: Authorized autonomous coding, compilation, and builds. |
 | 🌸 **`Pink`** | `#DB2777` | `#1A0812` | **Planning / Standby**: Read-only codebase analysis, architecture drafting, Captain's approval. |
+| 🔮 **`Purple`** | `#9333EA` | `#190A28` | **Inter-Agent Handover**: Active baton pass / handover to a different bridge officer. |
 | 🔴 **`Red`** | `#DC2626` | `#1A0808` | **Battle Station / Anomaly**: Emergency halted state, debugging, crash telemetry triage. |
 | 🔵 **`Blue`** | `#0078D4` | `#08131D` | **Watchstander / Monitor**: Outpost asset monitoring, diagnostics, field support. |
 | 🟡 **`Yellow`** | `#D97706` | `#1A0E04` | **Tactical Staging**: Heightened alert, pre-deployment staging, caution. |
@@ -73,6 +74,7 @@ Simply type from any PowerShell or Windows Terminal window:
 ```powershell
 ops green              # Shift to Active Engineering Mode
 ops pink               # Shift to Standby / Planning Mode
+ops purple             # Shift to Inter-Agent Handover Mode
 ops blue               # Shift to Watchstander / Monitoring Mode
 ops red                # Shift to Battle Station / Tactical Alert Mode
 ops red -Audio         # Shift with acoustic alert klaxon
