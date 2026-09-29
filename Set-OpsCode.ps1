@@ -169,35 +169,65 @@ function Prepare-OpsShell {
     Set-DarkMode
 }
 
-function Restart-Explorer {
-    $shell = Get-Process explorer -ErrorAction SilentlyContinue
-    if ($shell) {
-        Stop-Process -Name explorer -Force
-        Start-Sleep -Milliseconds 400
-    }
-    # Launch explorer shell in background mode without spawning a "This PC" window
-    Start-Process explorer.exe -ArgumentList "/separate" -WindowStyle Hidden -ErrorAction SilentlyContinue
-    # Force system theme parameters broadcast
-    rundll32.exe user32.dll,UpdatePerUserSystemParameters 1, True
-
-    # Broadcast Immersive Color flush to eliminate residue accents in Edge/Chrome/UWP
-    try {
-        if (-not ([System.Management.Automation.PSTypeName]'WinThemeBroadcaster').Type) {
-            Add-Type -TypeDefinition @"
+function Ensure-ThemeBroadcaster {
+    if (-not ([System.Management.Automation.PSTypeName]'WinThemeBroadcaster').Type) {
+        Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 public class WinThemeBroadcaster {
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+
+    [DllImport("user32.dll", EntryPoint = "SystemParametersInfo", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
 }
 "@ -ErrorAction SilentlyContinue
+    }
+}
+
+function Reset-WindowsCursors {
+    try {
+        $cursorPath = 'HKCU:\Control Panel\Cursors'
+        Set-ItemProperty -Path $cursorPath -Name '(default)' -Value 'Windows Default' -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $cursorPath -Name 'Scheme Source' -Type DWord -Value 1 -ErrorAction SilentlyContinue
+        @('Arrow','Help','AppStarting','Wait','Crosshair','IBeam','NWPen','No','SizeNS','SizeWE','SizeNWSE','SizeNESW','SizeAll','UpArrow','Hand','Pin','Person') | ForEach-Object {
+            Set-ItemProperty -Path $cursorPath -Name $_ -Value '' -ErrorAction SilentlyContinue
         }
+        Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Accessibility' -Name 'CursorColor' -ErrorAction SilentlyContinue
+        Ensure-ThemeBroadcaster
+        [WinThemeBroadcaster]::SystemParametersInfo(0x0057, 0, [IntPtr]::Zero, 3) | Out-Null
+        Write-Host '    Cursors: reset to Windows Default.' -ForegroundColor DarkCyan
+    } catch {}
+}
+
+function Restart-Explorer {
+    # Terminate cached XAML host islands (Action Center, Quick Settings WiFi/BT flyout, Start Menu)
+    Get-Process -Name 'ShellExperienceHost', 'StartMenuExperienceHost' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+    $shells = Get-Process explorer -ErrorAction SilentlyContinue
+    if ($shells) {
+        $shells | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 500
+    }
+    # Launch main explorer shell cleanly without spawning a "This PC" window
+    Start-Process explorer.exe -WindowStyle Hidden -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 400
+
+    # Force system theme parameters broadcast
+    rundll32.exe user32.dll,UpdatePerUserSystemParameters 1, True
+
+    # Broadcast Immersive Color flush to eliminate residue accents in Edge/Chrome/Action Center/UWP
+    try {
+        Ensure-ThemeBroadcaster
         $HWND_BROADCAST = [IntPtr]0xffff
         $WM_SETTINGCHANGE = 0x001A
+        $WM_DWMCOLORIZATIONCOLORCHANGED = 0x0320
         $SMTO_ABORTIFHUNG = 0x0002
         $result = [UIntPtr]::Zero
         [WinThemeBroadcaster]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, "ImmersiveColorSet", $SMTO_ABORTIFHUNG, 1000, [ref]$result) | Out-Null
         [WinThemeBroadcaster]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, "WindowsThemeElement", $SMTO_ABORTIFHUNG, 1000, [ref]$result) | Out-Null
+        [WinThemeBroadcaster]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, "Software\Microsoft\Windows\DWM", $SMTO_ABORTIFHUNG, 1000, [ref]$result) | Out-Null
+        [WinThemeBroadcaster]::SendMessageTimeout($HWND_BROADCAST, $WM_DWMCOLORIZATIONCOLORCHANGED, [UIntPtr]::Zero, $null, $SMTO_ABORTIFHUNG, 1000, [ref]$result) | Out-Null
     } catch {}
 }
 
@@ -543,14 +573,11 @@ function Set-IdeTheme($Palette) {
 }
 
 function Restore-Baseline {
+    Reset-WindowsCursors
     $wtBackup = Join-Path $BaselineDir 'windows-terminal-settings.json'
     if (Test-Path $wtBackup) {
         Copy-Item $wtBackup $WtPath -Force
         Write-Host 'Windows Terminal restored from baseline.'
-    }
-    Get-ChildItem $BaselineDir -Filter 'ide-settings*' -ErrorAction SilentlyContinue | ForEach-Object {
-        $origName = $_.Name -replace '^ide-settings', '' -replace '_', '\' -replace 'UsersData Entry', 'Users\Data Entry'
-        # Map back from sanitized name — use stored manifest instead
     }
     foreach ($ide in $IdePaths) {
         $safe = ($ide -replace '[\\:]+', '_')
@@ -572,13 +599,6 @@ function Restore-Baseline {
         if ($null -ne $a.ColorizationColor) {
             Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\DWM' -Name 'ColorizationColor' -Type DWord -Value ([uint32]$a.ColorizationColor)
         }
-        Set-AccentPrevalence $false
-        Set-PowerToysScheduleTheme
-        if (Test-DaylightHours) {
-            Write-Host 'PowerToys schedule: light mode restored (06:00-18:00).'
-        } else {
-            Write-Host 'PowerToys schedule: dark mode restored (18:00-06:00).'
-        }
         if ($null -ne $a.ExplorerAccentColorMenu) {
             Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent' -Name 'AccentColorMenu' -Type DWord -Value ([uint32]$a.ExplorerAccentColorMenu)
         }
@@ -591,9 +611,17 @@ function Restore-Baseline {
                 Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent' -Name 'AccentPalette' -Type Binary -Value $bytes
             }
         }
-        Restart-Explorer
-        Write-Host 'Windows accent restored from baseline.'
     }
+    Set-AccentPrevalence $false
+    Set-PowerToysScheduleTheme
+    if (Test-DaylightHours) {
+        Write-Host 'PowerToys schedule: light mode restored (06:00-18:00).'
+    } else {
+        Write-Host 'PowerToys schedule: dark mode restored (18:00-06:00).'
+    }
+    Restart-Explorer
+    Write-Host 'Windows accent and shell restored to baseline.'
+
     $themeManifest = Join-Path $OpsRoot 'terminal-theme.json'
     if (Test-Path $themeManifest) { Remove-Item $themeManifest -Force }
     if (Test-Path $StateFile) { Remove-Item $StateFile -Force }
